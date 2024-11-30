@@ -394,8 +394,8 @@ display:
       it.strftime(0, 235, id(bundessans_light_small), COLOR_ON, TextAlign::BOTTOM_LEFT, "%d. %H:%M", id(homeassistant_time).now());
       it.printf(60, 235, id(bundessans_light_small), COLOR_ON, TextAlign::BOTTOM_LEFT, "%.2f%V", id(battery_voltage).state);
       it.printf(112, 235, id(bundessans_light_small), COLOR_ON, TextAlign::BOTTOM_RIGHT, "%.0f", id(battery_percent).state);
-      it.print(122, 234, id(materialdesignicons_small), COLOR_ON, TextAlign::BOTTOM_RIGHT, "󱊣"); // battery-high
+      it.print(122, 233, id(materialdesignicons_small), COLOR_ON, TextAlign::BOTTOM_RIGHT, "󱊣"); // battery-high
 
       it.print(0, 250, id(bundessans_light_small), COLOR_ON, TextAlign::BOTTOM_LEFT, id(last_update).c_str());
-      it.print(112, 250, id(materialdesignicons_small), COLOR_ON, TextAlign::BOTTOM_RIGHT, id(status_api_call).c_str());
-      it.print(122, 250, id(materialdesignicons_small), COLOR_ON, TextAlign::BOTTOM_RIGHT, id(status_wifi).c_str());
+      it.print(109, 249, id(materialdesignicons_small), COLOR_ON, TextAlign::BOTTOM_RIGHT, id(status_api_call).c_str());
+      it.print(122, 249, id(materialdesignicons_small), COLOR_ON, TextAlign::BOTTOM_RIGHT, id(status_wifi).c_str());
