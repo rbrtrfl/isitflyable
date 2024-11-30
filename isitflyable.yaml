@@ -1,0 +1,337 @@
+substitutions:
+  name: waveshare-esp32-213in-epd
+  friendly_name: Waveshare ESP32 epd
+  meteoblue_api_key: !secret meteoblue_api_key
+
+esphome:
+  name: ${name}
+  friendly_name: ${friendly_name}
+  min_version: 2024.6.0
+  name_add_mac_suffix: false
+  project:
+    name: esphome.web
+    version: dev
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+logger:
+
+api:
+
+ota:
+  platform: esphome
+
+http_request:
+  verify_ssl: false
+
+script:
+  - id: meteoblue_get_wind_day
+    mode: queued
+    then:
+      - lambda: |-
+          std::string time_str = id(homeassistant_time).now().strftime("%d.%m.%y %H:%M");
+          id(last_update) = time_str.c_str();  // Convert std::string to const char* for assignment
+      - http_request.get:
+          url: https://my.meteoblue.com/packages/wind-day_basic-day?lat=52.5027757&lon=13.2274565&apikey=${meteoblue_api_key}&windspeed=kmh&winddirection=degree&asl=99
+          max_response_buffer_size: 5kb
+          capture_response: true
+          on_error:
+            then:
+              - lambda: id(status_api_call) = "󰀪";
+              - logger.log:
+                  level: ERROR
+                  format: "Error: Request failed"
+          on_response:
+            then:
+              - lambda: |-
+                  float response_size_kb = body.size() / 1024.0;  // Calculate size in KB
+                  ESP_LOGD("main", "Response size: %.2f KB", response_size_kb);
+              - if:
+                  condition:
+                    lambda: return response->status_code == 200;
+                  then:
+                    - lambda: |-
+                        json::parse_json(body, [](JsonObject root) -> bool {
+                            if (!root.containsKey("data_day")) {
+                              ESP_LOGE("main", "Error: JSON does not contain 'data_day' key.");
+                              id(status_api_call) = "󰀪";
+                              return false;
+                            }
+
+                            // Extract arrays and store them in globals
+                            JsonArray times = root["data_day"]["time"];
+                            JsonArray windspeeds = root["data_day"]["windspeed_80m_mean"];
+                            JsonArray winddirections = root["data_day"]["winddirection_80m"];
+                            JsonArray gusts_max = root["data_day"]["gust_max"];
+                            JsonArray precipitation = root["data_day"]["precipitation"];
+
+                            const char* weekday_abbreviations[] = {"So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"};
+                            struct tm tm_info;
+
+                            // Store the data in globals
+                            for (int i = 0; i < times.size(); i++) {
+                              const char* date_str = times[i].as<const char*>();
+
+                              // Parse the date string and directly compute the weekday
+                              strptime(date_str, "%Y-%m-%d", &tm_info);
+                              int weekday_index = tm_info.tm_wday; // Sun = 0
+                              id(weekday_array)[i] = weekday_abbreviations[weekday_index];
+
+                              // Store wind data
+                              id(windspeed_array)[i] = windspeeds[i].as<float>();
+                              id(winddirection_array)[i] = winddirections[i].as<int>();
+                              id(gust_array)[i] = gusts_max[i].as<float>();
+
+                              // Store precipitation data
+                              id(precipitation_array)[i] = precipitation[i].as<float>();
+                            }
+                          id(status_api_call) = "󰸞"; //check-bold
+                          return true;
+                        });
+                    - logger.log:
+                        format: "API Response Body (Truncated): %.200s"
+                        args: [body.c_str()]
+                  else:
+                    - lambda: id(status_api_call) = "󰀪";
+                    - logger.log:
+                        level: ERROR
+                        format: "Error: Response status: %d, message %s"
+                        args: [response->status_code, body.c_str()]
+
+      - component.update: display_epd
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  on_connect:
+    - logger.log: "Connected to WiFi"
+    - lambda: id(status_wifi) = "󰖩"; # wifi
+
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+    on_time:
+      cron: 0 0 6,12,18,0 * * *
+      then:
+        - logger.log: "Scheduled job triggered"
+        - script.execute: meteoblue_get_wind_day
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: 12
+      mode: INPUT_PULLUP  # Use pull-up resistor
+      inverted: true      # Invert signal (button press = LOW)
+    name: "User Button"
+    on_press:
+      - logger.log: "User button pressed! Triggering API call."
+      - script.execute: meteoblue_get_wind_day
+
+font:
+  - file: 'fonts/OpenSans-Bold.ttf'
+    id: bundessans_bold
+    size: 16
+
+  - file: 'fonts/OpenSans-Light.ttf'
+    id: bundessans_light
+    size: 16
+
+  - file: 'fonts/OpenSans-Light.ttf'
+    id: bundessans_light_small
+    size: 12
+
+  - file: 'fonts/materialdesignicons-webfont.ttf'
+    id: materialdesignicons
+    size: 18
+    glyphs: [
+      '󱪗', # file-document-alert
+      '󰃶', # calendar today
+      '󰆋', # compass
+      '󱗺', # windsock
+      '󰖝', # weather-windy
+      '󰖖' # weather-pouring
+    ]
+
+  - file: 'fonts/materialdesignicons-webfont.ttf'
+    id: materialdesignicons_small
+    size: 12
+    glyphs: [
+      '󰀪', # alert-outline
+      '󰖩', # wifi
+      '󰸞', # check-bold
+      '󱊣', # battery with three bars
+      '󱞓' # power plug
+    ]
+
+globals:
+  - id: status_api_call
+    type: String
+    initial_value: ""
+
+  - id: status_wifi
+    type: String
+    initial_value: ""
+
+  - id: last_update
+    type: String
+    initial_value: ""
+
+  - id: font_size
+    type: int
+    initial_value: "16"
+
+  - id: weekday_array
+    type: std::array<String, 7>
+    initial_value: '{"Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"}'
+
+  - id: winddirection_array
+    type: int[7]
+    initial_value: '{90, 270, 90, 270, 90, 270, 90}'
+
+  - id: windspeed_array
+    type: float[7]
+    initial_value: '{99.00, 5.00, 99.00, 5.00, 99.00, 5.00, 99.00}'
+
+  - id: gust_array
+    type: float[7]
+    initial_value: '{99.00, 0.00, 99.00, 0.00, 99.00, 0.00, 99.00}'
+
+  - id: precipitation_array
+    type: float[7]
+    initial_value: '{9.90, 0.00, 9.90, 0.00, 9.90, 0.00, 9.90}'
+
+spi:
+  clk_pin: 13
+  mosi_pin: 14
+
+display:
+  - platform: waveshare_epaper
+    id: display_epd
+    cs_pin: 15
+    dc_pin: 27
+    busy_pin: 25
+    reset_pin: 26
+    model: 2.13inv3
+    rotation: 0
+    full_update_every: 30
+    update_interval: 30s
+    lambda: |-
+      const float precipitation_threshold = 0.0f;
+      const float windspeed_bold_min = 5.0f;
+      const float windspeed_bold_max = 15.0f;
+      const int wind_westerly_min = 240;
+      const int wind_westerly_max = 320;
+      const int wind_southerly_min = 130;
+      const int wind_southerly_max = 190;
+      const float gust_westerly_max = 25.0f;
+      const float gust_southerly_max = 20.0f;
+
+      int columns[] = {
+        0,
+        static_cast<int>(id(font_size) * 2.3),
+        static_cast<int>(id(font_size) * 3),
+        static_cast<int>(id(font_size) * 4.5),
+        static_cast<int>(id(font_size) * 6),
+        static_cast<int>(id(font_size) * 7.5),
+        };
+
+      it.print(columns[0], 0, materialdesignicons, "󰃶"); // calendar today
+      it.print(columns[1] * 0.7, 0, materialdesignicons, "󰆋"); // compass
+      it.print(columns[2] * 1.01, 0, materialdesignicons, "󱗺"); // windsock
+      it.print(columns[3], 0, materialdesignicons, "󰖝"); // weather-windy
+      it.print(columns[4] * 1.02, 0, materialdesignicons, "󰖖"); // weather-pouring
+
+      for (int i = 0; i < 7; i++) {
+
+        int row = (id(font_size) * 1.5) * (i + 1);
+
+        // Round data to required precision
+        float rounded_windspeed = round(id(windspeed_array)[i]);               // Round to 0 decimals
+        float rounded_gust = round(id(gust_array)[i]);                         // Round to 0 decimals
+        float rounded_precipitation = round(id(precipitation_array)[i] * 10) / 10.0;  // Round to 1 decimal
+
+        // Conditions for each parameter
+        bool is_precipitation_ok = (rounded_precipitation == precipitation_threshold);
+        bool is_windspeed_ok = (rounded_windspeed >= windspeed_bold_min && rounded_windspeed <= windspeed_bold_max);
+        bool is_westerly = (id(winddirection_array)[i] >= wind_westerly_min && id(winddirection_array)[i] <= wind_westerly_max);
+        bool is_southerly = (id(winddirection_array)[i] >= wind_southerly_min && id(winddirection_array)[i] <= wind_southerly_max);
+        bool is_winddirection_ok = (is_westerly || is_southerly);
+        bool is_gust_ok = (is_westerly && rounded_gust < gust_westerly_max) || (is_southerly && rounded_gust < gust_southerly_max);
+
+        bool all_conditions_met = is_precipitation_ok && is_windspeed_ok && is_gust_ok && is_winddirection_ok;
+
+        // Draw black background if all conditions are met
+        if (all_conditions_met) {
+          it.filled_rectangle(0, row, 122, id(font_size) * 1.5, COLOR_ON);
+        }
+
+        // Choose text and arrow colors
+        auto text_color = all_conditions_met ? COLOR_OFF : COLOR_ON;
+
+        // Print weekday abbreviation
+        it.print(columns[0], row, id(bundessans_bold), text_color, id(weekday_array)[i].c_str());
+
+        // Print wind direction arrow
+        float wind_direction = id(winddirection_array)[i];
+
+        float pi = 3.14159;
+        // Reverse wind direction (add 180°) because in meteorology, the wind direction is given as the direction from which the wind is coming
+        // Subtract from 90° to to convert carthesian to compass direction
+        float wind_direction_arrow = fmod(90 - wind_direction + 180, 360);
+
+        // Convert to radians
+        float angle = wind_direction_arrow * pi / 180;
+        // Perpendicular angle in radians for sides of the arrow
+        float angle_perp = (wind_direction_arrow + 90) * pi / 180;
+
+        // Arrow dimensions
+        int arrow_length_half = id(font_size) / 2.25;  // Half of the arrow's length
+        float arrow_width_half = id(font_size) / 3.5;  // Half of the arrow's width
+        int center_x = columns[1];             // X-coordinate of the arrow's center
+        float center_y = row + (id(font_size) * 0.8); // Y-coordinate of the arrow's center
+
+        // Precompute trigonometric values
+        float cos_angle = cos(angle);
+        float sin_angle = sin(angle);
+        float cos_angle_perp = cos(angle_perp);
+        float sin_angle_perp = sin(angle_perp);
+
+        // Calculate the coordinates for the tip
+        int x1 = center_x + (arrow_length_half * cos_angle);
+        int y1 = center_y - (arrow_length_half * sin_angle); // Negate sin for inverted Y-axis
+
+        // Calculate the coordinates for the base point
+        int base_x = center_x - (arrow_length_half * cos_angle);
+        int base_y = center_y + (arrow_length_half * sin_angle); // Adjusted for inverted Y-axis
+
+        // Left side of arrowhead
+        int x2 = base_x + (arrow_width_half * cos_angle_perp);
+        int y2 = base_y - (arrow_width_half * sin_angle_perp); // Adjusted for inverted Y-axis
+
+        // Right side of arrowhead
+        int x3 = base_x - (arrow_width_half * cos_angle_perp);
+        int y3 = base_y + (arrow_width_half * sin_angle_perp); // Adjusted for inverted Y-axis
+
+        // Draw the arrow (triangle) for the current day
+        if (is_winddirection_ok) {
+          it.filled_triangle(x1, y1, x2, y2, x3, y3, text_color);
+        } else {
+          it.triangle(x1, y1, x2, y2, x3, y3, COLOR_ON);
+        }
+
+        // Print wind speed
+        it.printf(columns[2], row, is_windspeed_ok ? id(bundessans_bold) : id(bundessans_light), text_color, "%.0f", rounded_windspeed);
+
+        // Print gusts_max
+        it.printf(columns[3], row, is_gust_ok ? id(bundessans_bold) : id(bundessans_light), text_color, "%.0f", rounded_gust);
+
+        // Print precipitation
+        it.printf(columns[4], row, is_precipitation_ok ? id(bundessans_bold) : id(bundessans_light), text_color, "%.1f", rounded_precipitation);
+      }
+
+      it.print(0, 235, id(bundessans_light_small), COLOR_ON, id(last_update).c_str());
+      it.print(95, 237, id(materialdesignicons_small), COLOR_ON, id(status_api_call).c_str());
+      it.print(110, 237, id(materialdesignicons_small), COLOR_ON, id(status_wifi).c_str());
