@@ -142,6 +142,7 @@ script:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
+  power_save_mode: high
   on_connect:
     - logger.log: "Connected to WiFi"
     - lambda: id(status_wifi) = "󰖩"; # wifi
