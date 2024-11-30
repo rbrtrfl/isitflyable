@@ -253,7 +253,7 @@ display:
     model: 2.13inv3
     rotation: 0
     full_update_every: 30
-    update_interval: 30s
+    update_interval: 1min
     lambda: |-
       const float precipitation_threshold = 0.0f;
       const float windspeed_bold_min = 5.0f;
