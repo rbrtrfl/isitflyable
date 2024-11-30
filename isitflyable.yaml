@@ -369,11 +369,11 @@ display:
         it.printf(columns[4], row, is_precipitation_ok ? id(bundessans_bold) : id(bundessans_light), text_color, "%.1f", rounded_precipitation);
       }
 
-      it.strftime(0, 220, id(bundessans_light_small), COLOR_ON, "%d. %H:%M", id(homeassistant_time).now());
-      it.printf(60, 220, id(bundessans_light_small), COLOR_ON, "%.1f%V", id(battery_voltage).state);
-      it.printf(90, 220, id(bundessans_light_small), COLOR_ON, "%.0f", id(battery_percent).state);
-      it.print(110, 222, id(materialdesignicons_small), COLOR_ON, "󱊣"); // battery-high
+      it.strftime(0, 235, id(bundessans_light_small), COLOR_ON, TextAlign::BOTTOM_LEFT, "%d. %H:%M", id(homeassistant_time).now());
+      it.printf(60, 235, id(bundessans_light_small), COLOR_ON, TextAlign::BOTTOM_LEFT, "%.2f%V", id(battery_voltage).state);
+      it.printf(112, 235, id(bundessans_light_small), COLOR_ON, TextAlign::BOTTOM_RIGHT, "%.0f", id(battery_percent).state);
+      it.print(122, 234, id(materialdesignicons_small), COLOR_ON, TextAlign::BOTTOM_RIGHT, "󱊣"); // battery-high
 
-      it.print(0, 235, id(bundessans_light_small), COLOR_ON, id(last_update).c_str());
-      it.print(95, 237, id(materialdesignicons_small), COLOR_ON, id(status_api_call).c_str());
-      it.print(110, 237, id(materialdesignicons_small), COLOR_ON, id(status_wifi).c_str());
+      it.print(0, 250, id(bundessans_light_small), COLOR_ON, TextAlign::BOTTOM_LEFT, id(last_update).c_str());
+      it.print(112, 250, id(materialdesignicons_small), COLOR_ON, TextAlign::BOTTOM_RIGHT, id(status_api_call).c_str());
+      it.print(122, 250, id(materialdesignicons_small), COLOR_ON, TextAlign::BOTTOM_RIGHT, id(status_wifi).c_str());
