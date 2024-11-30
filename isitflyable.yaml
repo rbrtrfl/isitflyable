@@ -26,6 +26,10 @@ ota:
   platform: esphome
 
 sensor:
+  - platform: uptime
+    id: uptime_sensor
+    type: timestamp
+
   - platform: adc
     id: battery_voltage
     device_class: voltage
@@ -368,6 +372,24 @@ display:
         // Print precipitation
         it.printf(columns[4], row, is_precipitation_ok ? id(bundessans_bold) : id(bundessans_light), text_color, "%.1f", rounded_precipitation);
       }
+      // Get current time from Home Assistant and uptime timestamp
+      int current_time = id(homeassistant_time).now().timestamp;
+      int uptime_start = (int) id(uptime_sensor).state;
+
+      // Calculate elapsed time (uptime in seconds)
+      int uptime_seconds = current_time - uptime_start;
+
+      // Convert uptime to days, hours, and minutes
+      int days = uptime_seconds / (24 * 3600);
+      int hours = (uptime_seconds % (24 * 3600)) / 3600;
+      int minutes = (uptime_seconds % 3600) / 60;
+
+      // Format the uptime string
+      char uptime_string[20];
+      snprintf(uptime_string, sizeof(uptime_string), "%dd %dh %dm", days, hours, minutes);
+
+      // Print the uptime string
+      it.print(0, 220, id(bundessans_light_small), COLOR_ON, TextAlign::BOTTOM_LEFT, uptime_string);
 
       it.strftime(0, 235, id(bundessans_light_small), COLOR_ON, TextAlign::BOTTOM_LEFT, "%d. %H:%M", id(homeassistant_time).now());
       it.printf(60, 235, id(bundessans_light_small), COLOR_ON, TextAlign::BOTTOM_LEFT, "%.2f%V", id(battery_voltage).state);
