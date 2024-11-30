@@ -51,7 +51,7 @@ sensor:
     filters:
       - calibrate_linear:
           # Map from ESP32 voltage to Battery level
-          - 0.0 -> 0
+          - 2.3 -> 0
           - 4.1 -> 100 # max possible reported value by ESP32 ADC is 3.3V
       # Handle/cap boundaries
       - lambda: |
