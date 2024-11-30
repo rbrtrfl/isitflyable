@@ -114,7 +114,7 @@ time:
   - platform: homeassistant
     id: homeassistant_time
     on_time:
-      cron: 0 0 6,12,18,0 * * *
+      cron: 0 0 6,18 * * * # Trigger every day at 6:00 and 18:00
       then:
         - logger.log: "Scheduled job triggered"
         - script.execute: meteoblue_get_wind_day
