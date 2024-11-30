@@ -29,7 +29,7 @@ sensor:
     id: battery_voltage
     device_class: voltage
     pin: 36
-    update_interval: 5s
+    update_interval: 1min
     attenuation: auto
     filters:
       - multiply: 3
@@ -39,7 +39,7 @@ sensor:
           send_every: 5
           send_first_at: 1
       - delta: 0.01 # Only send values to HA if they change
-      - throttle: 10s # Limit values sent to Ha
+      - throttle: 1min # Limit values sent to Ha
 
   - platform: copy
     id: battery_percent
@@ -58,7 +58,7 @@ sensor:
           else if (x > 100) return 100;
           else return (x);
       - delta: 1 # Only send values to HA if they change
-      - throttle: 10s # Limit values sent to Ha
+      - throttle: 1min # Limit values sent to Ha
 
 http_request:
   verify_ssl: false
