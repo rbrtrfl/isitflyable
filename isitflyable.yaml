@@ -24,6 +24,42 @@ api:
 ota:
   platform: esphome
 
+sensor:
+  - platform: adc
+    id: battery_voltage
+    device_class: voltage
+    pin: 36
+    update_interval: 5s
+    attenuation: auto
+    filters:
+      - multiply: 3
+      # use moving median to smooth spikes
+      - median:
+          window_size: 5
+          send_every: 5
+          send_first_at: 1
+      - delta: 0.01 # Only send values to HA if they change
+      - throttle: 10s # Limit values sent to Ha
+
+  - platform: copy
+    id: battery_percent
+    source_id: battery_voltage
+    device_class: battery
+    icon: "mdi:battery"
+    accuracy_decimals: 0
+    filters:
+      - calibrate_linear:
+          # Map from ESP32 voltage to Battery level
+          - 0.0 -> 0
+          - 4.1 -> 100 # max possible reported value by ESP32 ADC is 3.3V
+      # Handle/cap boundaries
+      - lambda: |
+          if (x < 0) return 0;
+          else if (x > 100) return 100;
+          else return (x);
+      - delta: 1 # Only send values to HA if they change
+      - throttle: 10s # Limit values sent to Ha
+
 http_request:
   verify_ssl: false
 
@@ -162,8 +198,7 @@ font:
       '󰀪', # alert-outline
       '󰖩', # wifi
       '󰸞', # check-bold
-      '󱊣', # battery with three bars
-      '󱞓' # power plug
+      '󱊣' # battery-high
     ]
 
 globals:
@@ -331,6 +366,11 @@ display:
         // Print precipitation
         it.printf(columns[4], row, is_precipitation_ok ? id(bundessans_bold) : id(bundessans_light), text_color, "%.1f", rounded_precipitation);
       }
+
+      it.strftime(0, 220, id(bundessans_light_small), COLOR_ON, "%d. %H:%M", id(homeassistant_time).now());
+      it.printf(60, 220, id(bundessans_light_small), COLOR_ON, "%.1f%V", id(battery_voltage).state);
+      it.printf(90, 220, id(bundessans_light_small), COLOR_ON, "%.0f", id(battery_percent).state);
+      it.print(110, 222, id(materialdesignicons_small), COLOR_ON, "󱊣"); // battery-high
 
       it.print(0, 235, id(bundessans_light_small), COLOR_ON, id(last_update).c_str());
       it.print(95, 237, id(materialdesignicons_small), COLOR_ON, id(status_api_call).c_str());
